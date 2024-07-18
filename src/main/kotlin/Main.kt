@@ -1,7 +1,7 @@
 import kotlinx.coroutines.*
 import mu.KotlinLogging
 import java.io.File
-import java.io.InputStream
+import java.io.FileInputStream
 import java.nio.file.Paths
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -9,16 +9,24 @@ import java.util.*
 import javazoom.jl.decoder.JavaLayerException
 import javazoom.jl.player.Player
 import com.mpatric.mp3agic.Mp3File
-import java.io.FileInputStream
 
 private val logger = KotlinLogging.logger {}
 
 fun main() = runBlocking {
-    val startTime = LocalTime.of(10, 30)
-    val endTime = LocalTime.of(22, 30)
-    logger.info { "Application started. Start time: $startTime, End time: $endTime" }
+    val configFilePath = Paths.get(System.getProperty("user.dir"),  "config.properties").toString()
+    val config = loadConfig(configFilePath)
 
-    val config = loadConfig("config.properties")
+    val startTime = LocalTime.parse(config.getProperty("startTime", "10:00"))
+    val endTime = LocalTime.parse(config.getProperty("endTime", "22:45"))
+    val minTracks = config.getProperty("minTracks", "3").toInt()
+    val maxTracks = config.getProperty("maxTracks", "5").toInt()
+    val minWaitTime = config.getProperty("minWaitTime", "10").toInt()
+    val maxWaitTime = config.getProperty("maxWaitTime", "15").toInt()
+    val minPlays = config.getProperty("minPlays", "1").toInt()
+    val maxPlays = config.getProperty("maxPlays", "3").toInt()
+
+    logger.info { "Application started at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}. Start time: $startTime, End time: $endTime" }
+
     val defaultMp3Path = Paths.get(System.getProperty("user.dir"), "mp3").toString()
     val mp3DirectoryPath = config.getProperty("mp3Directory", defaultMp3Path)
     logger.info { "MP3 directory path: $mp3DirectoryPath" }
@@ -38,22 +46,22 @@ fun main() = runBlocking {
             val remainingTime = java.time.Duration.between(currentTime, endTime).toMinutes()
             logger.info { "Current time: $currentTime, Remaining time: $remainingTime minutes" }
 
-            if (remainingTime < 30) {
-                logger.info { "Not enough time remaining to play another set of MP3 files. Stopping playback." }
+            if (remainingTime < 10) {
+                logger.info { "Less than 10 minutes remaining to play another set of MP3 files. Stopping playback." }
                 break
             }
 
-            playRandomFiles(mp3Files, remainingTime)
+            playRandomFiles(mp3Files, remainingTime, minTracks, maxTracks, minPlays, maxPlays)
         } else {
             val waitTime = java.time.Duration.between(LocalTime.now(), startTime).toMillis()
             logger.info { "Waiting ${waitTime / 1000 / 60} minutes to start the playback" }
             delay(waitTime)
         }
 
-        val waitDuration = Random().nextInt(16) + 15 
+        val waitDuration = Random().nextInt(maxWaitTime - minWaitTime + 1) + minWaitTime
         val currentTimeAfterPlay = LocalTime.now()
         val remainingTimeAfterPlay = java.time.Duration.between(currentTimeAfterPlay, endTime).toMinutes()
-        logger.info { "Wait duration: $waitDuration minutes, Time after playing: $currentTimeAfterPlay, Remaining time after playing: $remainingTimeAfterPlay minutes" }
+        logger.info { "Wait duration: $waitDuration minutes, Current time: $currentTimeAfterPlay, Remaining time after playing: $remainingTimeAfterPlay minutes" }
 
         if (remainingTimeAfterPlay < waitDuration) {
             logger.info { "Not enough time remaining to wait for $waitDuration minutes. Stopping playback." }
@@ -63,25 +71,32 @@ fun main() = runBlocking {
         logger.info { "Waiting $waitDuration minutes before next playback" }
         delay(waitDuration * 60 * 1000L)
     }
-    logger.info { "Application finished" }
+    logger.info { "Application finished at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
 }
 
-suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long) {
-    val randomFiles = mp3Files.shuffled().take((1..2).random())
-    logger.info { "Selected ${randomFiles.size} random MP3 files to play" }
+suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long, minTracks: Int, maxTracks: Int, minPlays: Int, maxPlays: Int) {
+    val randomFiles = mp3Files.shuffled().take((minTracks..maxTracks).random())
+    logger.info { "Selected ${randomFiles.size} random MP3 files to play at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
+
+    var remainingTimeVar = remainingTime
 
     for (file in randomFiles) {
         val fileDuration = getFileDuration(file)
         logger.info { "File: ${file.name}, Duration: $fileDuration minutes, Remaining time: $remainingTime minutes" }
 
-        if (remainingTime - fileDuration > 0) {
-            playMp3(file)
-        } else {
-            logger.info { "Not enough time remaining to play ${file.name}. Stopping playback." }
-            break
+        val plays = (minPlays..maxPlays).random()
+        for (playCount in 1..plays) {
+            if (remainingTimeVar - fileDuration > 0) {
+                playMp3(file)
+                remainingTimeVar -= fileDuration
+            } else {
+                logger.info { "Not enough time remaining to play ${file.name}. Stopping playback." }
+                break
+            }
         }
     }
 }
+
 
 suspend fun playMp3(file: File) {
     withContext(Dispatchers.IO) {
@@ -110,15 +125,15 @@ fun getFileDuration(file: File): Long {
     }
 }
 
-fun loadConfig(fileName: String): Properties {
+fun loadConfig(filePath: String): Properties {
     val properties = Properties()
-    val classLoader = Thread.currentThread().contextClassLoader
-    val inputStream: InputStream? = classLoader.getResourceAsStream(fileName)
-    if (inputStream != null) {
-        properties.load(inputStream)
-        logger.info { "Loaded config from $fileName" }
-    } else {
-        logger.warn { "Config file not found in resources. Using default settings." }
+    try {
+        FileInputStream(filePath).use { inputStream ->
+            properties.load(inputStream)
+            logger.info { "Loaded config from $filePath at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
+        }
+    } catch (e: Exception) {
+        logger.error(e) { "Failed to load config file: $filePath. Using default settings." }
     }
     return properties
 }
