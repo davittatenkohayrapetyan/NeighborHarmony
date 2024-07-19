@@ -24,6 +24,7 @@ fun main() = runBlocking {
     val maxWaitTime = config.getProperty("maxWaitTime", "15").toInt()
     val minPlays = config.getProperty("minPlays", "1").toInt()
     val maxPlays = config.getProperty("maxPlays", "3").toInt()
+    val maxIntervalBetweenFiles = config.getProperty("maxIntervalBetweenFiles", "30").toInt()
 
     logger.info { "Application started at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}. Start time: $startTime, End time: $endTime" }
 
@@ -51,7 +52,7 @@ fun main() = runBlocking {
                 break
             }
 
-            playRandomFiles(mp3Files, remainingTime, minTracks, maxTracks, minPlays, maxPlays)
+            playRandomFiles(mp3Files, remainingTime, minTracks, maxTracks, minPlays, maxPlays, maxIntervalBetweenFiles)
         } else {
             val waitTime = java.time.Duration.between(LocalTime.now(), startTime).toMillis()
             logger.info { "Waiting ${waitTime / 1000 / 60} minutes to start the playback" }
@@ -74,13 +75,13 @@ fun main() = runBlocking {
     logger.info { "Application finished at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
 }
 
-suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long, minTracks: Int, maxTracks: Int, minPlays: Int, maxPlays: Int) {
+suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long, minTracks: Int, maxTracks: Int, minPlays: Int, maxPlays: Int, maxIntervalBetweenFiles: Int) {
     val randomFiles = mp3Files.shuffled().take((minTracks..maxTracks).random())
     logger.info { "Selected ${randomFiles.size} random MP3 files to play at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
 
     var remainingTimeVar = remainingTime
 
-    for (file in randomFiles) {
+    for ((index, file) in randomFiles.withIndex()) {
         val fileDuration = getFileDuration(file)
         logger.info { "File: ${file.name}, Duration: $fileDuration minutes, Remaining time: $remainingTime minutes" }
 
@@ -89,6 +90,13 @@ suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long, minTracks
             if (remainingTimeVar - fileDuration > 0) {
                 playMp3(file)
                 remainingTimeVar -= fileDuration
+
+                // Apply interval between files randomly
+                if (index < randomFiles.size - 1 && Random().nextBoolean()) {
+                    val interval = Random().nextInt(maxIntervalBetweenFiles + 1)
+                    logger.info { "Waiting $interval seconds before playing next file" }
+                    delay(interval * 1000L)
+                }
             } else {
                 logger.info { "Not enough time remaining to play ${file.name}. Stopping playback." }
                 break
@@ -96,7 +104,6 @@ suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long, minTracks
         }
     }
 }
-
 
 suspend fun playMp3(file: File) {
     withContext(Dispatchers.IO) {
