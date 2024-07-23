@@ -11,6 +11,8 @@ Please consider using this approach only as a last resort. Before resorting to t
 
 Be prepared to talk to your neighbors if they become upset by the noise. Make sure to use the configuration that fits your needs and complies with your local laws.
 
+
+![img_3.png](img_3.png)
 > "The path of the righteous man is beset on all sides by the inequities of the selfish and the tyranny of evil men. Blessed is he who, in the name of charity and good will, shepherds the weak through the valley of the darkness. For he is truly his brother’s keeper and the finder of lost children. And I will strike down upon thee with great vengeance and furious anger those who attempt to poison and destroy my brothers. And you will know I am the Lord when I lay my vengeance upon you." — Pulp Fiction
 
 ## Features
