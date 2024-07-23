@@ -76,34 +76,47 @@ fun main() = runBlocking {
 }
 
 suspend fun playRandomFiles(mp3Files: List<File>, remainingTime: Long, minTracks: Int, maxTracks: Int, minPlays: Int, maxPlays: Int, maxIntervalBetweenFiles: Int) {
-    val randomFiles = mp3Files.shuffled().take((minTracks..maxTracks).random())
-    logger.info { "Selected ${randomFiles.size} random MP3 files to play at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
+    val selectedFiles = mp3Files.shuffled().take((minTracks..maxTracks).random())
+    logger.info { "Selected ${selectedFiles.size} random MP3 files to play at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}" }
+
+    // Initialize play counts for each file
+    val filePlayCounts = selectedFiles.associateWith { (minPlays..maxPlays).random() }.toMutableMap()
+    logger.info { "Play counts for files: $filePlayCounts" }
 
     var remainingTimeVar = remainingTime
 
-    for ((index, file) in randomFiles.withIndex()) {
+    while (remainingTimeVar > 0 && filePlayCounts.isNotEmpty()) {
+        val file = filePlayCounts.keys.random()
         val fileDuration = getFileDuration(file)
-        logger.info { "File: ${file.name}, Duration: $fileDuration minutes, Remaining time: $remainingTime minutes" }
+        val playCount = filePlayCounts[file] ?: 0
 
-        val plays = (minPlays..maxPlays).random()
-        for (playCount in 1..plays) {
-            if (remainingTimeVar - fileDuration > 0) {
-                playMp3(file)
-                remainingTimeVar -= fileDuration
+        if (playCount > 0) {
+            // Play the file
+            playMp3(file)
+            remainingTimeVar -= fileDuration
 
-                // Apply interval between files randomly
-                if (index < randomFiles.size - 1 && Random().nextBoolean()) {
-                    val interval = Random().nextInt(maxIntervalBetweenFiles + 1)
-                    logger.info { "Waiting $interval seconds before playing next file" }
-                    delay(interval * 1000L)
-                }
-            } else {
-                logger.info { "Not enough time remaining to play ${file.name}. Stopping playback." }
-                break
+            // Update the play count
+            filePlayCounts[file] = playCount - 1
+
+            // Remove the file if it has been played the maximum number of times
+            if (filePlayCounts[file] == 0) {
+                filePlayCounts.remove(file)
+                logger.info { "File ${file.name} has reached its play limit and has been removed from the list." }
+            }
+
+            // Apply interval between files randomly
+            if (remainingTimeVar > 0 && Random().nextBoolean()) {
+                val interval = Random().nextInt(maxIntervalBetweenFiles + 1)
+                logger.info { "Waiting $interval seconds before playing next file" }
+                delay(interval * 1000L)
             }
         }
     }
+
+    logger.info { "Playback finished. Remaining time: $remainingTimeVar minutes" }
 }
+
+
 
 suspend fun playMp3(file: File) {
     withContext(Dispatchers.IO) {
