@@ -16,7 +16,6 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.7")
     implementation("javazoom:jlayer:1.0.1")
     implementation("com.mpatric:mp3agic:0.9.1") // Add mp3agic for MP3 metadata
-
 }
 
 java {
