@@ -32,7 +32,7 @@ Be prepared to talk to your neighbors if they become upset by the noise. Make su
 1. **Install Java:**
 
     - **Windows:**
-      Download and install the latest JDK from the [Oracle JDK website](https://www.oracle.com/java/technologies/javase-jdk17-downloads.html).
+      Download and install the latest JDK from the [Oracle JDK website](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html).
 
     - **Linux:**
       Open a terminal and run the following command:
