@@ -72,8 +72,10 @@ class Mp3Player(private val textArea: JTextArea) : CoroutineScope {
     fun start() {
         if (playerJob == null || playerJob?.isActive == false) {
             playerJob = launch(Dispatchers.IO) {
-                val startTime = LocalTime.parse(config.getProperty("startTime", "10:00"))
-                val endTime = LocalTime.parse(config.getProperty("endTime", "22:45"))
+                val morningStartTime = LocalTime.parse(config.getProperty("morningStartTime", "08:00"))
+                val morningEndTime = LocalTime.parse(config.getProperty("morningEndTime", "12:00"))
+                val eveningStartTime = LocalTime.parse(config.getProperty("eveningStartTime", "18:00"))
+                val eveningEndTime = LocalTime.parse(config.getProperty("eveningEndTime", "22:45"))
                 val minTracks = config.getProperty("minTracks", "3").toInt()
                 val maxTracks = config.getProperty("maxTracks", "5").toInt()
                 val minWaitTime = config.getProperty("minWaitTime", "10").toInt()
@@ -82,7 +84,7 @@ class Mp3Player(private val textArea: JTextArea) : CoroutineScope {
                 val maxPlays = config.getProperty("maxPlays", "3").toInt()
                 val maxIntervalBetweenFiles = config.getProperty("maxIntervalBetweenFiles", "30").toInt()
 
-                log("Application started. Start time: $startTime, End time: $endTime")
+                log("Application started. Morning start time: $morningStartTime, Morning end time: $morningEndTime, Evening start time: $eveningStartTime, Evening end time: $eveningEndTime")
 
                 val defaultMp3Path = Paths.get(System.getProperty("user.dir"), "mp3").toString()
                 val mp3DirectoryPath = config.getProperty("mp3Directory", defaultMp3Path)
@@ -97,39 +99,88 @@ class Mp3Player(private val textArea: JTextArea) : CoroutineScope {
                 }
                 log("MP3 files found in the directory: ${mp3Directory.absolutePath}. Number of files: ${mp3Files.size}")
 
-                while (LocalTime.now().isBefore(endTime)) {
-                    val currentTime = LocalTime.now()
-                    if (currentTime.isAfter(startTime)) {
-                        val remainingTime = java.time.Duration.between(currentTime, endTime).toMinutes()
-                        log("Current time: $currentTime, Remaining time: $remainingTime minutes")
-
-                        if (remainingTime < 10) {
-                            log("Less than 10 minutes remaining to play another set of MP3 files. Stopping playback.")
-                            break
-                        }
-
-                        playRandomFiles(mp3Files, remainingTime, minTracks, maxTracks, minPlays, maxPlays, maxIntervalBetweenFiles)
+                while(true) {
+                    val now = LocalTime.now()
+                    if (now.isAfter(morningStartTime) && now.isBefore(morningEndTime)) {
+                        playFiles(
+                            mp3Files,
+                            morningStartTime,
+                            morningEndTime,
+                            minTracks,
+                            maxTracks,
+                            minWaitTime,
+                            maxWaitTime,
+                            minPlays,
+                            maxPlays,
+                            maxIntervalBetweenFiles
+                        )
+                    } else if (now.isAfter(eveningStartTime) && now.isBefore(eveningEndTime)) {
+                        playFiles(
+                            mp3Files,
+                            eveningStartTime,
+                            eveningEndTime,
+                            minTracks,
+                            maxTracks,
+                            minWaitTime,
+                            maxWaitTime,
+                            minPlays,
+                            maxPlays,
+                            maxIntervalBetweenFiles
+                        )
                     } else {
-                        val waitTime = java.time.Duration.between(LocalTime.now(), startTime).toMillis()
+                        val nextStartTime = if (now.isBefore(morningStartTime)) morningStartTime else eveningStartTime
+                        val waitTime = java.time.Duration.between(now, nextStartTime).toMillis()
                         log("Waiting ${waitTime / 1000 / 60} minutes to start the playback")
                         delay(waitTime)
                     }
-
-                    val waitDuration = Random().nextInt(maxWaitTime - minWaitTime + 1) + minWaitTime
-                    val currentTimeAfterPlay = LocalTime.now()
-                    val remainingTimeAfterPlay = java.time.Duration.between(currentTimeAfterPlay, endTime).toMinutes()
-                    log("Wait duration: $waitDuration minutes, Current time: $currentTimeAfterPlay, Remaining time after playing: $remainingTimeAfterPlay minutes")
-
-                    if (remainingTimeAfterPlay < waitDuration) {
-                        log("Not enough time remaining to wait for $waitDuration minutes. Stopping playback.")
-                        break
-                    }
-
-                    log("Waiting $waitDuration minutes before next playback")
-                    delay(waitDuration * 60 * 1000L)
                 }
                 log("Application finished at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}")
             }
+        }
+    }
+
+    private suspend fun playFiles(
+        mp3Files: List<File>,
+        startTime: LocalTime,
+        endTime: LocalTime,
+        minTracks: Int,
+        maxTracks: Int,
+        minWaitTime: Int,
+        maxWaitTime: Int,
+        minPlays: Int,
+        maxPlays: Int,
+        maxIntervalBetweenFiles: Int
+    ) {
+        while (LocalTime.now().isBefore(endTime)) {
+            val currentTime = LocalTime.now()
+            if (currentTime.isAfter(startTime)) {
+                val remainingTime = java.time.Duration.between(currentTime, endTime).toMinutes()
+                log("Current time: $currentTime, Remaining time: $remainingTime minutes")
+
+                if (remainingTime < 10) {
+                    log("Less than 10 minutes remaining to play another set of MP3 files. Stopping playback.")
+                    break
+                }
+
+                playRandomFiles(mp3Files, remainingTime, minTracks, maxTracks, minPlays, maxPlays, maxIntervalBetweenFiles)
+            } else {
+                val waitTime = java.time.Duration.between(LocalTime.now(), startTime).toMillis()
+                log("Waiting ${waitTime / 1000 / 60} minutes to start the playback")
+                delay(waitTime)
+            }
+
+            val waitDuration = Random().nextInt(maxWaitTime - minWaitTime + 1) + minWaitTime
+            val currentTimeAfterPlay = LocalTime.now()
+            val remainingTimeAfterPlay = java.time.Duration.between(currentTimeAfterPlay, endTime).toMinutes()
+            log("Wait duration: $waitDuration minutes, Current time: $currentTimeAfterPlay, Remaining time after playing: $remainingTimeAfterPlay minutes")
+
+            if (remainingTimeAfterPlay < waitDuration) {
+                log("Not enough time remaining to wait for $waitDuration minutes. Stopping playback.")
+                break
+            }
+
+            log("Waiting $waitDuration minutes before next playback")
+            delay(waitDuration * 60 * 1000L)
         }
     }
 
@@ -250,8 +301,10 @@ class Mp3Player(private val textArea: JTextArea) : CoroutineScope {
 
 class SettingsDialog(owner: JFrame, private val player: Mp3Player) : JDialog(owner, "Settings", true) {
     private val config = player.getConfig()
-    private val startTimeField = JTextField(config.getProperty("startTime", "10:00"))
-    private val endTimeField = JTextField(config.getProperty("endTime", "22:45"))
+    private val morningStartTimeField = JTextField(config.getProperty("morningStartTime", "08:00"))
+    private val morningEndTimeField = JTextField(config.getProperty("morningEndTime", "12:00"))
+    private val eveningStartTimeField = JTextField(config.getProperty("eveningStartTime", "18:00"))
+    private val eveningEndTimeField = JTextField(config.getProperty("eveningEndTime", "22:45"))
     private val minTracksField = JTextField(config.getProperty("minTracks", "3"))
     private val maxTracksField = JTextField(config.getProperty("maxTracks", "5"))
     private val minWaitTimeField = JTextField(config.getProperty("minWaitTime", "10"))
@@ -263,12 +316,16 @@ class SettingsDialog(owner: JFrame, private val player: Mp3Player) : JDialog(own
 
     init {
         layout = BorderLayout()
-        val panel = JPanel(GridLayout(10, 2))
+        val panel = JPanel(GridLayout(12, 2))
 
-        panel.add(JLabel("Start Time:"))
-        panel.add(startTimeField)
-        panel.add(JLabel("End Time:"))
-        panel.add(endTimeField)
+        panel.add(JLabel("Morning Start Time:"))
+        panel.add(morningStartTimeField)
+        panel.add(JLabel("Morning End Time:"))
+        panel.add(morningEndTimeField)
+        panel.add(JLabel("Evening Start Time:"))
+        panel.add(eveningStartTimeField)
+        panel.add(JLabel("Evening End Time:"))
+        panel.add(eveningEndTimeField)
         panel.add(JLabel("Min Tracks:"))
         panel.add(minTracksField)
         panel.add(JLabel("Max Tracks:"))
@@ -288,8 +345,10 @@ class SettingsDialog(owner: JFrame, private val player: Mp3Player) : JDialog(own
 
         val saveButton = JButton("Save")
         saveButton.addActionListener {
-            config.setProperty("startTime", startTimeField.text)
-            config.setProperty("endTime", endTimeField.text)
+            config.setProperty("morningStartTime", morningStartTimeField.text)
+            config.setProperty("morningEndTime", morningEndTimeField.text)
+            config.setProperty("eveningStartTime", eveningStartTimeField.text)
+            config.setProperty("eveningEndTime", eveningEndTimeField.text)
             config.setProperty("minTracks", minTracksField.text)
             config.setProperty("maxTracks", maxTracksField.text)
             config.setProperty("minWaitTime", minWaitTimeField.text)
