@@ -7,15 +7,22 @@ plugins {
 
 repositories {
     mavenCentral()
+    google()
 }
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.6.4")
-    implementation("io.github.microutils:kotlin-logging:2.1.21") // Correct artifact name
+    implementation("io.github.microutils:kotlin-logging:2.1.21")
     implementation("org.slf4j:slf4j-simple:2.0.7")
     implementation("javazoom:jlayer:1.0.1")
-    implementation("com.mpatric:mp3agic:0.9.1") // Add mp3agic for MP3 metadata
+    implementation("com.mpatric:mp3agic:0.9.1")
+    implementation("io.ktor:ktor-server-core:2.0.3")
+    implementation("io.ktor:ktor-server-netty:2.0.3")
+    implementation("io.ktor:ktor-server-html-builder:2.0.3")
+    implementation("io.ktor:ktor-client-core:2.0.3")
+    implementation("io.ktor:ktor-client-cio:2.0.3")
+    implementation("org.telegram:telegrambots:6.0.1")
 }
 
 java {
@@ -31,7 +38,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("MainKt") // Replace with your main class
+    mainClass.set("MainKt")
 }
 
 tasks.withType<Jar> {

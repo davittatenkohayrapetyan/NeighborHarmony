@@ -13,6 +13,8 @@ import javax.swing.*
 import javazoom.jl.decoder.JavaLayerException
 import javazoom.jl.player.Player
 import com.mpatric.mp3agic.Mp3File
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 private val logger = KotlinLogging.logger {}
 
@@ -128,10 +130,32 @@ class Mp3Player(private val textArea: JTextArea) : CoroutineScope {
                             maxIntervalBetweenFiles
                         )
                     } else {
-                        val nextStartTime = if (now.isBefore(morningStartTime)) morningStartTime else eveningStartTime
-                        val waitTime = java.time.Duration.between(now, nextStartTime).toMillis()
+                        val nextMorningStartTime = if (now.isBefore(morningStartTime)) {
+                            LocalDateTime.of(LocalDate.now(), morningStartTime)
+                        } else {
+                            LocalDateTime.of(LocalDate.now().plusDays(1), morningStartTime)
+                        }
+
+                        val nextEveningStartTime = if (now.isBefore(eveningStartTime)) {
+                            LocalDateTime.of(LocalDate.now(), eveningStartTime)
+                        } else {
+                            LocalDateTime.of(LocalDate.now().plusDays(1), eveningStartTime)
+                        }
+
+                        val nextStartTime = if (now.isAfter(eveningEndTime)) {
+                            nextMorningStartTime
+                        } else {
+                            if (nextMorningStartTime.isBefore(nextEveningStartTime)) {
+                                nextMorningStartTime
+                            } else {
+                                nextEveningStartTime
+                            }
+                        }
+
+                        val waitTime = java.time.Duration.between(LocalDateTime.now(), nextStartTime).toMillis()
                         log("Waiting ${waitTime / 1000 / 60} minutes to start the playback")
                         delay(waitTime)
+
                     }
                 }
                 log("Application finished at ${LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))}")
@@ -212,6 +236,10 @@ class Mp3Player(private val textArea: JTextArea) : CoroutineScope {
             val file = filePlayCounts.keys.random()
             val fileDuration = getFileDuration(file)
             val playCount = filePlayCounts[file] ?: 0
+            
+            if(remainingTime - fileDuration < 0){
+                break
+            }
 
             if (playCount > 0) {
                 playMp3(file)
